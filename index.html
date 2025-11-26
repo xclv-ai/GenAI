@@ -17,8 +17,11 @@
     a.page{display:block;padding:14px 16px;border:1px solid #e6eef6;border-radius:8px;text-decoration:none;color:inherit;background:#f8fafc}
     a.page:hover{box-shadow:0 6px 18px rgba(2,132,199,0.12);transform:translateY(-2px)}
     .meta{font-size:0.95rem;color:var(--muted);margin-top:6px}
+    .preview{margin-top:8px;color:#334155}
     footer{margin-top:28px;color:var(--muted);font-size:0.9rem}
     .note{margin-top:18px;font-size:0.9rem;color:#334155}
+    .muted-small{color:var(--muted);font-size:0.9rem}
+    .loading{opacity:0.7}
   </style>
 </head>
 <body>
@@ -27,18 +30,150 @@
       <h1>GenAI — Reports</h1>
     </header>
 
-    <p class="lead">A simple index of generated reports and demo pages. Drop HTML files into the repository root (or this folder) and they will be reachable from GitHub Pages at https://xclv-ai.github.io/GenAI/</p>
+    <p class="lead">This index auto-discovers .html files in this repository and lists them as links. Files like <code>26nov.html</code> or <code>28nov.html</code> will appear as date-style entries automatically. Entries are sorted by last-modified time (most recent first) and include a short preview snippet.</p>
 
-    <ul class="pages">
-      <li>
-        <a class="page" href="DR_26NOV_Nano_Banana_PRO.html">DR_26NOV_Nano_Banana_PRO.html — Nano Banana Pro (26 Nov)</a>
-        <div class="meta">Preview: 7 verified use cases from the All About AI video — code visualization, infographic, blueprints, and more.</div>
-      </li>
-    </ul>
+    <div id="status" class="muted-small">Loading pages…</div>
 
-    <div class="note">To add more pages, create additional .html files in the repository and link them here. If you want this index to update automatically, we can add a simple generation script.</div>
+    <ul id="pages" class="pages" aria-live="polite"></ul>
+
+    <div class="note">If you don't see your uploaded page appear, wait a few seconds or reload. This page uses the public repository API to read the repository root and per-file commit dates. Public requests are rate-limited.</div>
 
     <footer>Hosted at <strong>https://xclv-ai.github.io/GenAI/</strong></footer>
   </div>
+
+  <script>
+    (function(){
+      const owner = 'xclv-ai';
+      const repo = 'GenAI';
+      const branch = 'main';
+      const statusEl = document.getElementById('status');
+      const pagesEl = document.getElementById('pages');
+
+      function prettifyFilename(name){
+        const base = name.replace(/\.html$/i,'');
+        // Try to extract date-like token (e.g. 2025-11-26, 26nov, nov26)
+        const dateMatch = base.match(/(\d{4}[\-_.]\d{2}[\-_.]\d{2}|\d{1,2}[A-Za-z]{3,}|[A-Za-z]{3,}[\-_.]?\d{1,2})/i);
+        if(dateMatch){
+          let tok = dateMatch[0];
+          tok = tok.replace(/(\d+)([A-Za-z]+)/, (m,p1,p2)=> p1 + ' ' + p2.charAt(0).toUpperCase() + p2.slice(1).toLowerCase());
+          tok = tok.replace(/[\-_.]/g,' ');
+          return tok;
+        }
+        return base.replace(/[\-_.]+/g,' ').split(' ').map(w=> w.length ? (w.charAt(0).toUpperCase()+w.slice(1)) : '').join(' ');
+      }
+
+      function timeAgo(iso){
+        if(!iso) return '';
+        const d = new Date(iso);
+        return d.toLocaleString();
+      }
+
+      async function fetchRepoRoot(){
+        const url = `https://api.github.com/repos/${owner}/${repo}/contents?ref=${branch}`;
+        const r = await fetch(url);
+        if(!r.ok) throw new Error('GitHub API error ' + r.status);
+        return r.json();
+      }
+
+      async function fetchLastCommitDate(path){
+        const url = `https://api.github.com/repos/${owner}/${repo}/commits?path=${encodeURIComponent(path)}&sha=${branch}&per_page=1`;
+        try{
+          const r = await fetch(url);
+          if(!r.ok) return null;
+          const j = await r.json();
+          if(!j || !j.length) return null;
+          return j[0].commit && j[0].commit.author && j[0].commit.author.date ? j[0].commit.author.date : null;
+        }catch(e){
+          return null;
+        }
+      }
+
+      async function fetchPreviewText(download_url){
+        try{
+          const r = await fetch(download_url);
+          if(!r.ok) return '';
+          const txt = await r.text();
+          const parser = new DOMParser();
+          const doc = parser.parseFromString(txt, 'text/html');
+          const selectors = ['meta[name=description]','h1','h2','p'];
+          for(const sel of selectors){
+            const el = doc.querySelector(sel);
+            if(el){
+              if(sel.startsWith('meta')) return el.getAttribute('content') || '';
+              return el.textContent.trim().replace(/\s+/g,' ').slice(0,240);
+            }
+          }
+          const bodyText = doc.body ? doc.body.textContent.trim().replace(/\s+/g,' ') : '';
+          return bodyText.slice(0,240);
+        }catch(e){
+          return '';
+        }
+      }
+
+      async function build(){
+        try{
+          statusEl.textContent = 'Loading repository contents...';
+          const root = await fetchRepoRoot();
+          const htmlFiles = root.filter(item => item.type === 'file' && /\.html$/i.test(item.name) && item.name.toLowerCase() !== 'index.html');
+          if(!htmlFiles.length){
+            statusEl.textContent = 'No .html pages found (other than this index).';
+            return;
+          }
+
+          statusEl.textContent = `Found ${htmlFiles.length} page(s). Fetching metadata...`;
+
+          // fetch commit date and preview for each file in parallel (be mindful of rate limits)
+          const tasks = htmlFiles.map(async file => {
+            const date = await fetchLastCommitDate(file.path);
+            const preview = await fetchPreviewText(file.download_url);
+            return {name: file.name, path: file.path, size: file.size, download_url: file.download_url, date, preview};
+          });
+
+          const results = await Promise.all(tasks);
+
+          // sort by date desc (nulls last)
+          results.sort((a,b)=>{
+            if(a.date && b.date) return new Date(b.date) - new Date(a.date);
+            if(a.date) return -1;
+            if(b.date) return 1;
+            return a.name.localeCompare(b.name, undefined, {numeric:true});
+          });
+
+          statusEl.textContent = '';
+          pagesEl.innerHTML = '';
+
+          results.forEach(file => {
+            const li = document.createElement('li');
+            const a = document.createElement('a');
+            a.className = 'page';
+            a.href = file.name;
+            a.textContent = `${prettifyFilename(file.name)} — ${file.name}`;
+            li.appendChild(a);
+
+            const meta = document.createElement('div');
+            meta.className = 'meta';
+            meta.textContent = `${file.date ? timeAgo(file.date) + ' • ' : ''}${file.size? Math.round(file.size/1024)+' KB':''}`;
+            li.appendChild(meta);
+
+            if(file.preview){
+              const p = document.createElement('div');
+              p.className = 'preview';
+              p.textContent = file.preview;
+              li.appendChild(p);
+            }
+
+            pagesEl.appendChild(li);
+          });
+
+        }catch(err){
+          console.error(err);
+          statusEl.textContent = 'Could not load pages automatically; please reload or use the generator script.';
+        }
+      }
+
+      build();
+
+    })();
+  </script>
 </body>
 </html>
