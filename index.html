@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>GenAI — Reports</title>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    :root{--bg:#ffffff;--text:#0f172a;--accent:#0284c7;--muted:#64748b}
+    html,body{height:100%;}
+    body{margin:0;font-family:'JetBrains Mono', monospace;background:var(--bg);color:var(--text);-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+    .wrap{max-width:920px;margin:48px auto;padding:32px}
+    header{display:flex;align-items:center;justify-content:space-between}
+    h1{margin:0;font-weight:600;color:var(--accent)}
+    p.lead{margin:12px 0 24px;color:var(--muted)}
+    ul.pages{list-style:none;padding:0;margin:0;display:grid;gap:12px}
+    a.page{display:block;padding:14px 16px;border:1px solid #e6eef6;border-radius:8px;text-decoration:none;color:inherit;background:#f8fafc}
+    a.page:hover{box-shadow:0 6px 18px rgba(2,132,199,0.12);transform:translateY(-2px)}
+    .meta{font-size:0.95rem;color:var(--muted);margin-top:6px}
+    footer{margin-top:28px;color:var(--muted);font-size:0.9rem}
+    .note{margin-top:18px;font-size:0.9rem;color:#334155}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>GenAI — Reports</h1>
+    </header>
+
+    <p class="lead">A simple index of generated reports and demo pages. Drop HTML files into the repository root (or this folder) and they will be reachable from GitHub Pages at https://xclv-ai.github.io/GenAI/</p>
+
+    <ul class="pages">
+      <li>
+        <a class="page" href="DR_26NOV_Nano_Banana_PRO.html">DR_26NOV_Nano_Banana_PRO.html — Nano Banana Pro (26 Nov)</a>
+        <div class="meta">Preview: 7 verified use cases from the All About AI video — code visualization, infographic, blueprints, and more.</div>
+      </li>
+    </ul>
+
+    <div class="note">To add more pages, create additional .html files in the repository and link them here. If you want this index to update automatically, we can add a simple generation script.</div>
+
+    <footer>Hosted at <strong>https://xclv-ai.github.io/GenAI/</strong></footer>
+  </div>
+</body>
+</html>
